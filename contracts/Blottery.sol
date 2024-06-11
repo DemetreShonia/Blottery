@@ -12,15 +12,9 @@ contract Blottery {
 
     event TicketPurchased(address indexed player, GameType game, uint256 ticketID, uint256[] selectedOptions);
     event GameResult(GameType game, uint256[] winningNumbers, address[] winners);
-   
 
-    function calculateWinningAmount(GameType game, uint256 numberOfWinners)
-        internal
-        view
-        returns (uint256)
-    {
-
-        uint256 totalBetAmount = gameBalances[game]; 
+    function calculateWinningAmount(GameType game, uint256 numberOfWinners) internal view returns (uint256) {
+        uint256 totalBetAmount = gameBalances[game];
 
         uint256 winningAmountPerWinner = totalBetAmount / numberOfWinners;
         return winningAmountPerWinner / 2;
@@ -36,17 +30,16 @@ contract Blottery {
         uint256 ticketId;
         address player;
         uint256 betAmount;
-        uint256[] selectedOptions; 
+        uint256[] selectedOptions;
     }
 
-    struct GameInfo{
+    struct GameInfo {
         uint256 betAmount;
         uint256 duration;
     }
 
     mapping(GameType => GameInfo) public gameInfos;
 
-    
     uint256 public ticketID;
     address public owner;
 
@@ -77,13 +70,11 @@ contract Blottery {
     function getGamePrice(GameType _gameType) public view returns (uint256) {
         return gameInfos[_gameType].betAmount;
     }
-     function getGameDuration(GameType _gameType) public view returns (uint256) {
+    function getGameDuration(GameType _gameType) public view returns (uint256) {
         return gameInfos[_gameType].duration;
     }
 
-    function addGameStatus(address _player, TicketStatus memory _gameStatus)
-        internal
-    {
+    function addGameStatus(address _player, TicketStatus memory _gameStatus) internal {
         if (playerStatuses[_player].length == 0) {
             // grab unique users
             users.push(_player);
@@ -91,66 +82,34 @@ contract Blottery {
         playerStatuses[_player].push(_gameStatus);
     }
 
-    function getPlayerGameStatuses(address _player)
-        public
-        view
-        returns (TicketStatus[] memory)
-    {
+    function getPlayerGameStatuses(address _player) public view returns (TicketStatus[] memory) {
         return playerStatuses[_player];
     }
 
     uint maxLottoNumbers = 32;
     uint selectNumbers = 6;
+    uint startMoneyThreshold = 50 wei;
 
-    function setLottoRules(uint _maxLottoNumbers, uint _selectNumbers) public onlyOwner {
+    function setLottoRules(uint _maxLottoNumbers, uint _selectNumbers, uint _startMoney) public onlyOwner {
         maxLottoNumbers = _maxLottoNumbers;
         selectNumbers = _selectNumbers;
+        startMoneyThreshold = _startMoney;
     }
 
-
-
-    modifier validateCanBuyTicket(
-        GameType game,
-        uint256[] memory selectedOptions
-    ) {
-        require(
-            msg.value >= getGamePrice(game),
-            
-            "You do not have enough money to participate!"
-        );
+    modifier validateCanBuyTicket(GameType game, uint256[] memory selectedOptions) {
+        require(msg.value >= getGamePrice(game), "You do not have enough money to participate!");
 
         if (game == GameType.COIN_FLIP) {
-            require(
-                selectedOptions.length == 1,
-                "Coin Flip requires exactly one option"
-            );
-            require(
-                selectedOptions[0] == 0 || selectedOptions[0] == 1,
-                "Invalid option for Coin Flip"
-            );
+            require(selectedOptions.length == 1, "Coin Flip requires exactly one option");
+            require(selectedOptions[0] == 0 || selectedOptions[0] == 1, "Invalid option for Coin Flip");
         } else if (game == GameType.DICE_ROLL) {
-            require(
-                selectedOptions.length == 2,
-                "Dice Roll requires exactly two options"
-            );
-            require(
-                selectedOptions[0] >= 1 && selectedOptions[0] <= 6,
-                "Dice option out of range"
-            );
-            require(
-                selectedOptions[1] >= 1 && selectedOptions[1] <= 6,
-                "Dice option out of range"
-            );
+            require(selectedOptions.length == 2, "Dice Roll requires exactly two options");
+            require(selectedOptions[0] >= 1 && selectedOptions[0] <= 6, "Dice option out of range");
+            require(selectedOptions[1] >= 1 && selectedOptions[1] <= 6, "Dice option out of range");
         } else if (game == GameType.LOTTO) {
-            require(
-                selectedOptions.length == selectNumbers,
-                "Lotto requires different amount of numbers options"
-            );
+            require(selectedOptions.length == selectNumbers, "Lotto requires different amount of numbers options");
             for (uint256 i = 0; i < selectedOptions.length; i++) {
-                require(
-                    selectedOptions[i] >= 1 && selectedOptions[i] <= maxLottoNumbers,
-                    "Lotto number out of range"
-                );
+                require(selectedOptions[i] >= 1 && selectedOptions[i] <= maxLottoNumbers, "Lotto number out of range");
             }
         } else {
             revert("Invalid game type");
@@ -158,42 +117,22 @@ contract Blottery {
         _;
     }
 
-    function buyTicket(GameType game, uint256[] memory selectedOptions)
-        public
-        payable
-        validateCanBuyTicket(game, selectedOptions)
-    {
+    function buyTicket(GameType game, uint256[] memory selectedOptions) public payable validateCanBuyTicket(game, selectedOptions) {
         ticketID++;
 
         uint gamePrice = getGamePrice(game);
 
         gameBalances[game] += gamePrice; // maybe betAmount?(Games price?) or msg.value
 
-        TicketStatus memory newGameStatus = TicketStatus({
-            used: false,
-            gamePlayed: game,
-            paidFee: msg.value,
-            betAmount: gamePrice,
-            randomWord: new uint[](0),
-            didWin: false,
-            startDate: block.timestamp,
-            ticketId: ticketID,
-            player: msg.sender,
-            selectedOptions: selectedOptions
-        });
+        TicketStatus memory newGameStatus = TicketStatus({used: false, gamePlayed: game, paidFee: msg.value, betAmount: gamePrice, randomWord: new uint[](0), didWin: false, startDate: block.timestamp, ticketId: ticketID, player: msg.sender, selectedOptions: selectedOptions});
 
         addGameStatus(msg.sender, newGameStatus);
 
-         emit TicketPurchased(msg.sender, game, ticketID, selectedOptions);
+        emit TicketPurchased(msg.sender, game, ticketID, selectedOptions);
     }
 
     function generateRandomNumber(uint256 seed) public view returns (uint256) {
-        return
-            uint256(
-                keccak256(
-                    abi.encodePacked(block.difficulty, block.timestamp, seed)
-                )
-            );
+        return uint256(keccak256(abi.encodePacked(block.difficulty, block.timestamp, seed)));
     }
 
     function flipCoin() public view onlyOwner returns (uint256[] memory) {
@@ -207,10 +146,10 @@ contract Blottery {
     function rollDice() public view onlyOwner returns (uint256[] memory) {
         uint256 r1 = generateRandomNumber(block.timestamp);
         uint256 r2 = generateRandomNumber(block.timestamp + 1);
-        
+
         uint256 result1 = (r1 % 6) + 1;
         uint256 result2 = (r2 % 6) + 1;
-        
+
         uint256[] memory diceResult = new uint256[](2);
         diceResult[0] = result1;
         diceResult[1] = result2;
@@ -218,7 +157,6 @@ contract Blottery {
     }
 
     function lottoShuffle() public view onlyOwner returns (uint256[] memory) {
-
         uint256[] memory allNumbers = new uint256[](maxLottoNumbers);
         uint256[] memory lottoNumbers = new uint256[](selectNumbers);
 
@@ -235,27 +173,20 @@ contract Blottery {
         return lottoNumbers;
     }
 
-
-    function conductGame(GameType game)
-        public
-        onlyOwner
-        returns (uint256[] memory)
-    {
+    function conductGame(GameType game) public onlyOwner returns (uint256[] memory) {
         uint256[] memory winningNumbers;
 
-        if(game == GameType.COIN_FLIP){
+        if (game == GameType.COIN_FLIP) {
             winningNumbers = flipCoin();
-        }else if(game == GameType.DICE_ROLL){
+        } else if (game == GameType.DICE_ROLL) {
             winningNumbers = rollDice();
-        }else if (game == GameType.LOTTO) {
+        } else if (game == GameType.LOTTO) {
             winningNumbers = lottoShuffle();
         }
         recordLotteryResults(game, winningNumbers);
 
         return winningNumbers;
     }
-
-    
 
     function sort(uint[] memory arr) internal pure returns (uint[] memory) {
         uint length = arr.length;
@@ -276,7 +207,7 @@ contract Blottery {
         if (arr1.length != arr2.length) {
             return false;
         }
-        
+
         uint[] memory sortedArr1 = sort(arr1);
         uint[] memory sortedArr2 = sort(arr2);
 
@@ -285,17 +216,17 @@ contract Blottery {
                 return false;
             }
         }
-        
+
         return true;
+    }
+
+    function canStartGame(GameType game) public view returns (bool) {
+        return gameBalances[game] >= startMoneyThreshold;
     }
 
     address[] winners;
 
-    
-
-
     function recordLotteryResults(GameType game, uint256[] memory winningNumbers) internal {
-
         for (uint256 i = 0; i < users.length; i++) {
             TicketStatus[] memory userTicketStatuses = playerStatuses[users[i]];
 
@@ -306,8 +237,7 @@ contract Blottery {
                     if (game == GameType.COIN_FLIP) {
                         didWin = winningNumbers[0] == userTicketStatuses[j].selectedOptions[0];
                     } else if (game == GameType.DICE_ROLL) {
-                        didWin = winningNumbers[0] == userTicketStatuses[j].selectedOptions[0] &&
-                                    winningNumbers[1] == userTicketStatuses[j].selectedOptions[1];
+                        didWin = winningNumbers[0] == userTicketStatuses[j].selectedOptions[0] && winningNumbers[1] == userTicketStatuses[j].selectedOptions[1];
                     } else if (game == GameType.LOTTO) {
                         didWin = areArraysEqual(winningNumbers, userTicketStatuses[j].selectedOptions);
                     }
@@ -323,11 +253,10 @@ contract Blottery {
             }
         }
 
+        if (winners.length > 0) {
+            uint256 winnings = calculateWinningAmount(game, winners.length);
 
-        if(winners.length > 0){
-             uint256 winnings = calculateWinningAmount(game, winners.length);
-
-            for(uint256 i = 0; i < winners.length; i++){
+            for (uint256 i = 0; i < winners.length; i++) {
                 // reentrance problem fixed
                 address winner = winners[i];
                 uint256 amountToTransfer = winnings;
@@ -341,10 +270,11 @@ contract Blottery {
         }
 
         // else no one won
-       
+
         emit GameResult(game, winningNumbers, winners); // if player won 2 times, it will be in winners array 2 times, but in the end he should receive what he won anyways
+
+        gameBalances[game] = 0; // reset this
 
         delete winners;
     }
-
 }
