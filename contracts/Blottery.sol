@@ -37,6 +37,7 @@ contract Blottery {
     struct GameInfo {
         uint256 betAmount;
         uint256 duration;
+        uint256 endDate;
     }
     enum GameType {
         COIN_FLIP,
@@ -58,6 +59,10 @@ contract Blottery {
 
     function buyTicket(GameType game, uint256[] memory selectedOptions) public payable validateCanBuyTicket(game, selectedOptions) {
         ticketID++;
+
+        if (gameInfos[game].endDate < block.timestamp && canStartGame(game)) {
+            gameInfos[game].endDate = block.timestamp + gameInfos[game].duration;
+        }
 
         uint gamePrice = getGamePrice(game);
 
@@ -211,9 +216,16 @@ contract Blottery {
 
     // START --- SETTERS AND GETTERS
 
+    function getJackPot() public view returns (uint256) {
+        return address(this).balance / 2;
+    }
     function setGameInfo(GameType _gameType, uint256 _price, uint256 duration) public onlyOwner {
         gameInfos[_gameType].betAmount = _price;
         gameInfos[_gameType].duration = duration;
+        gameInfos[_gameType].endDate = 0;
+    }
+    function getGameEndDate(GameType _gameType) public view returns (uint256) {
+        return gameInfos[_gameType].endDate;
     }
 
     function getGamePrice(GameType _gameType) public view returns (uint256) {
