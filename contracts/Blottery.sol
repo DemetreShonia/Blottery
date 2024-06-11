@@ -102,6 +102,11 @@ contract Blottery {
     uint maxLottoNumbers = 32;
     uint selectNumbers = 6;
 
+    function setLottoRules(uint _maxLottoNumbers, uint _selectNumbers) public onlyOwner {
+        maxLottoNumbers = _maxLottoNumbers;
+        selectNumbers = _selectNumbers;
+    }
+
 
 
     modifier validateCanBuyTicket(
@@ -323,12 +328,15 @@ contract Blottery {
              uint256 winnings = calculateWinningAmount(game, winners.length);
 
             for(uint256 i = 0; i < winners.length; i++){
-                if (address(this).balance >= winnings) {
-                    payable(winners[i]).transfer(winnings);
-                    gameBalances[game] -= winnings;
-                } else {
-                    revert("Insufficient contract balance for transfer");
-                }
+                // reentrance problem fixed
+                address winner = winners[i];
+                uint256 amountToTransfer = winnings;
+
+                gameBalances[game] -= amountToTransfer;
+
+                require(address(this).balance >= amountToTransfer, "Insufficient contract balance for transfer");
+                (bool success, ) = payable(winner).call{value: amountToTransfer}("");
+                require(success, "Transfer failed");
             }
         }
 
