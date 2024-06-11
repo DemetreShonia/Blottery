@@ -14,6 +14,7 @@ contract Blottery {
 
     event TicketPurchased(address indexed player, GameType game, uint256 ticketID, uint256[] selectedOptions);
     event GameResult(GameType game, uint256[] winningNumbers, address[] winners);
+    event GameStarted(GameType game, uint256 endDate);
 
     struct LotteryRules {
         uint maxLottoNumbers;
@@ -25,7 +26,6 @@ contract Blottery {
         bool used;
         GameType gamePlayed;
         uint256 paidFee;
-        uint256[] randomWord;
         bool didWin;
         uint256 startDate;
         uint256 ticketId;
@@ -60,24 +60,27 @@ contract Blottery {
     function buyTicket(GameType game, uint256[] memory selectedOptions) public payable validateCanBuyTicket(game, selectedOptions) {
         ticketID++;
 
-        if (gameInfos[game].endDate < block.timestamp && canStartGame(game)) {
-            gameInfos[game].endDate = block.timestamp + gameInfos[game].duration;
+        if (gameInfos[game].endDate == 0) {
+            if (canStartGame(game)) {
+                gameInfos[game].endDate = block.timestamp + gameInfos[game].duration;
+                emit GameStarted(game, gameInfos[game].endDate);
+            }
         }
 
         uint gamePrice = getGamePrice(game);
 
         gameBalances[game] += gamePrice; // maybe betAmount?(Games price?) or msg.value
 
-        TicketStatus memory newGameStatus = TicketStatus({used: false, gamePlayed: game, paidFee: msg.value, betAmount: gamePrice, randomWord: new uint[](0), didWin: false, startDate: block.timestamp, ticketId: ticketID, player: msg.sender, selectedOptions: selectedOptions});
+        TicketStatus memory newGameStatus = TicketStatus({used: false, gamePlayed: game, paidFee: msg.value, betAmount: gamePrice, didWin: false, startDate: block.timestamp, ticketId: ticketID, player: msg.sender, selectedOptions: selectedOptions});
 
         addGameStatus(msg.sender, newGameStatus);
 
         emit TicketPurchased(msg.sender, game, ticketID, selectedOptions);
     }
 
-    function conductGame(GameType game) public onlyOwner returns (uint256[] memory) {
+    function conductGame(GameType game) public {
+        if (gameInfos[game].endDate > block.timestamp) return;
         uint256[] memory winningNumbers;
-
         if (game == GameType.COIN_FLIP) {
             winningNumbers = flipCoin();
         } else if (game == GameType.DICE_ROLL) {
@@ -86,8 +89,7 @@ contract Blottery {
             winningNumbers = lottoShuffle();
         }
         recordLotteryResults(game, winningNumbers);
-
-        return winningNumbers;
+        gameInfos[game].endDate = 0;
     }
 
     function recordLotteryResults(GameType game, uint256[] memory winningNumbers) internal {
@@ -111,7 +113,6 @@ contract Blottery {
                     }
 
                     playerStatuses[users[i]][j].used = true;
-                    playerStatuses[users[i]][j].randomWord = winningNumbers;
                     playerStatuses[users[i]][j].didWin = didWin;
                 }
             }
@@ -146,10 +147,10 @@ contract Blottery {
 
     // START -- HELPER FUNCTIONS
 
-    modifier onlyOwner() {
-        require(msg.sender == owner, "Only the owner can perform this action");
-        _;
-    }
+    // modifier onlyOwner() {
+    //     require(msg.sender == owner, "Only the owner can perform this action");
+    //     _;
+    // }
 
     function canStartGame(GameType game) public view returns (bool) {
         return gameBalances[game] >= rules.startMoneyThreshold;
@@ -219,7 +220,7 @@ contract Blottery {
     function getJackPot() public view returns (uint256) {
         return address(this).balance / 2;
     }
-    function setGameInfo(GameType _gameType, uint256 _price, uint256 duration) public onlyOwner {
+    function setGameInfo(GameType _gameType, uint256 _price, uint256 duration) public {
         gameInfos[_gameType].betAmount = _price;
         gameInfos[_gameType].duration = duration;
         gameInfos[_gameType].endDate = 0;
@@ -247,7 +248,7 @@ contract Blottery {
         return playerStatuses[_player];
     }
 
-    function setLottoRules(uint _maxLottoNumbers, uint _selectNumbers, uint _startMoney) public onlyOwner {
+    function setLottoRules(uint _maxLottoNumbers, uint _selectNumbers, uint _startMoney) public {
         rules.maxLottoNumbers = _maxLottoNumbers;
         rules.selectNumbers = _selectNumbers;
         rules.startMoneyThreshold = _startMoney;
@@ -259,7 +260,7 @@ contract Blottery {
         return uint256(keccak256(abi.encodePacked(block.difficulty, block.timestamp, seed)));
     }
 
-    function flipCoin() public view onlyOwner returns (uint256[] memory) {
+    function flipCoin() public view returns (uint256[] memory) {
         uint256 r = generateRandomNumber(block.timestamp);
         uint256 result = r % 2;
         uint256[] memory coinResult = new uint256[](1);
@@ -267,7 +268,7 @@ contract Blottery {
         return coinResult;
     }
 
-    function rollDice() public view onlyOwner returns (uint256[] memory) {
+    function rollDice() public view returns (uint256[] memory) {
         uint256 r1 = generateRandomNumber(block.timestamp);
         uint256 r2 = generateRandomNumber(block.timestamp + 1);
 
@@ -280,7 +281,7 @@ contract Blottery {
         return diceResult;
     }
 
-    function lottoShuffle() public view onlyOwner returns (uint256[] memory) {
+    function lottoShuffle() public view returns (uint256[] memory) {
         uint256[] memory allNumbers = new uint256[](rules.maxLottoNumbers);
         uint256[] memory lottoNumbers = new uint256[](rules.selectNumbers);
 
