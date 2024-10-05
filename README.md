@@ -1,6 +1,6 @@
 # Blottery 🎟️
 
-Blottery is a decentralized lottery platform built on the Polygon network, allowing users to participate in lottery games using their MetaMask wallet. Players can buy tickets for various games and potentially win rewards once a set amount of money is collected.
+Blottery is a decentralized lottery platform built on the Polygon network, allowing users to participate in lottery games using their MetaMask wallet. Players can buy tickets for various games and potentially win rewards once a set amount of money is collected. I have been mostly working on the solidity side in this project!
 
 ## Features 🌟
 - **MetaMask Integration**: Connect your MetaMask wallet to the Polygon network.
